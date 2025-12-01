@@ -51,12 +51,6 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "src/subgen_cli/__init__.py"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/subgen_cli"]
-exclude = [
-    "example/",
-]
-
 [tool.ruff]
 fix = true
 line-length = 120
