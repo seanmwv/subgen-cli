@@ -3,7 +3,7 @@ name = "subgen-cli"
 dynamic = ["version"]
 description = "Standalone command-line interface for subtitle generation"
 authors = [
-    { name = "seanmwv", email = "p@smwv.dev"}
+    { email = "p@smwv.dev" }
 ]
 readme = "README.md"
 license = { file = "LICENSE" }
