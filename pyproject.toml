@@ -3,7 +3,7 @@ name = "subgen-cli"
 dynamic = ["version"]
 description = "Standalone command-line interface for subtitle generation"
 authors = [
-    { name = "seanmwv", email = "x@smwv.dev"}
+    { name = "seanmwv", email = "p@smwv.dev"}
 ]
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -48,13 +48,11 @@ Repository = "https://github.com/seanmwv/subgen-cli"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.build]
-packages = ["src/subgen_cli"]
-
 [tool.hatch.version]
 path = "src/subgen_cli/__init__.py"
 
 [tool.hatch.build.targets.wheel]
+packages = ["src/subgen_cli"]
 exclude = [
     "example/",
 ]
