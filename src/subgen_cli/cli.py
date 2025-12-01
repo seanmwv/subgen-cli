@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Subgen CLI - Standalone command-line interface for subtitle generation
+"""Subgen CLI - Standalone command-line interface for subtitle generation
 
 This is a clean, CLI-only implementation of subgen that uses Whisper AI
 for transcription. It has no dependencies on server code and uses command-line
@@ -9,42 +8,101 @@ arguments instead of environment variables.
 Based on subgen by McCloudS: https://github.com/McCloudS/subgen
 """
 
-from . import __version__
 import argparse
-import sys
-import os
-import time
-import logging
 import gc
+import logging
+import os
+import sys
+import time
+from contextlib import contextmanager
 from enum import Enum
 from io import BytesIO
-from typing import Optional, List, Dict, Any
-from contextlib import contextmanager
+from typing import Any
 
 # Third-party imports
 import ffmpeg
 import stable_whisper
 import torch
 
+from . import __version__
+
 # ============================================================================
 # CONSTANTS
 # ============================================================================
 
+def get_default_model_path() -> str:
+    """
+    Get platform-specific default model cache directory.
+
+    Returns:
+        Path to the default model cache directory:
+        - Windows: %LOCALAPPDATA%\\subgen\\models
+        - Linux/macOS: ~/.cache/subgen/models
+    """
+    if os.name == 'nt':  # Windows
+        base = os.getenv('LOCALAPPDATA', os.path.expanduser('~'))
+        return os.path.join(base, 'subgen', 'models')
+    else:  # Linux/macOS
+        base = os.getenv('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
+        return os.path.join(base, 'subgen', 'models')
+
+
 VIDEO_EXTENSIONS = (
-    ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".mpg", ".mpeg",
-    ".3gp", ".ogv", ".vob", ".rm", ".rmvb", ".ts", ".m4v", ".f4v", ".svq3",
-    ".asf", ".m2ts", ".divx", ".xvid"
+    ".mp4",
+    ".mkv",
+    ".avi",
+    ".mov",
+    ".wmv",
+    ".flv",
+    ".webm",
+    ".mpg",
+    ".mpeg",
+    ".3gp",
+    ".ogv",
+    ".vob",
+    ".rm",
+    ".rmvb",
+    ".ts",
+    ".m4v",
+    ".f4v",
+    ".svq3",
+    ".asf",
+    ".m2ts",
+    ".divx",
+    ".xvid",
 )
 
 AUDIO_EXTENSIONS = (
-    ".mp3", ".wav", ".aac", ".flac", ".ogg", ".wma", ".alac", ".m4a", ".opus",
-    ".aiff", ".aif", ".pcm", ".ra", ".ram", ".mid", ".midi", ".ape", ".wv",
-    ".amr", ".vox", ".tak", ".spx", ".m4b", ".mka"
+    ".mp3",
+    ".wav",
+    ".aac",
+    ".flac",
+    ".ogg",
+    ".wma",
+    ".alac",
+    ".m4a",
+    ".opus",
+    ".aiff",
+    ".aif",
+    ".pcm",
+    ".ra",
+    ".ram",
+    ".mid",
+    ".midi",
+    ".ape",
+    ".wv",
+    ".amr",
+    ".vox",
+    ".tak",
+    ".spx",
+    ".m4b",
+    ".mka",
 )
+
 
 class LanguageCode(Enum):
     # ISO 639-1, ISO 639-2/T, ISO 639-2/B, English Name, Native Name
-    AFAR = ("aa", "aar", "aar", "Afar", "Afar") 
+    AFAR = ("aa", "aar", "aar", "Afar", "Afar")
     AFRIKAANS = ("af", "afr", "afr", "Afrikaans", "Afrikaans")
     AMHARIC = ("am", "amh", "amh", "Amharic", "አማርኛ")
     ARABIC = ("ar", "ara", "ara", "Arabic", "العربية")
@@ -170,18 +228,19 @@ class LanguageCode(Enum):
         return LanguageCode.NONE
 
     @staticmethod
-    def from_name(name : str):
+    def from_name(name: str):
         """Convert a language name (either English or native) to LanguageCode enum."""
         for lang in LanguageCode:
-            if lang.name_en.lower() == name.lower() or lang.name_native.lower() == name.lower():
+            if (
+                lang.name_en.lower() == name.lower()
+                or lang.name_native.lower() == name.lower()
+            ):
                 return lang
-        LanguageCode.NONE
-        
+        return LanguageCode.NONE
 
-    @staticmethod    
+    @staticmethod
     def from_string(value: str):
-        """
-        Convert a string to a LanguageCode instance. Matches on ISO codes, English name, or native name.
+        """Convert a string to a LanguageCode instance. Matches on ISO codes, English name, or native name.
         """
         if value is None:
             return LanguageCode.NONE
@@ -189,7 +248,7 @@ class LanguageCode(Enum):
         for lang in LanguageCode:
             if lang is LanguageCode.NONE:
                 continue
-            elif (
+            if (
                 value == lang.iso_639_1
                 or value == lang.iso_639_2_t
                 or value == lang.iso_639_2_b
@@ -198,12 +257,12 @@ class LanguageCode(Enum):
             ):
                 return lang
         return LanguageCode.NONE
-    
+
     # is valid language
     @staticmethod
     def is_valid_language(language: str):
         return LanguageCode.from_string(language) is not LanguageCode.NONE
-    
+
     def to_iso_639_1(self):
         return self.iso_639_1
 
@@ -215,17 +274,17 @@ class LanguageCode(Enum):
 
     def to_name(self, in_english=True):
         return self.name_en if in_english else self.name_native
+
     def __str__(self):
         if self.name_en is None:
             return "Unknown"
         return self.name_en
-    
+
     def __bool__(self):
         return True if self.iso_639_1 is not None else False
-    
+
     def __eq__(self, other):
-        """
-        Compare the LanguageCode instance to another object.
+        """Compare the LanguageCode instance to another object.
         Explicitly handle comparison to None.
         """
         if other is None:
@@ -240,14 +299,13 @@ class LanguageCode(Enum):
         return NotImplemented
 
 
-
 # ============================================================================
 # WHISPER MODEL MANAGER
 # ============================================================================
 
+
 class WhisperModelManager:
-    """
-    Manages the lifecycle of a Whisper model without global state.
+    """Manages the lifecycle of a Whisper model without global state.
 
     This class handles loading, using, and cleaning up Whisper models,
     replacing the global model pattern from the original subgen.py.
@@ -259,23 +317,23 @@ class WhisperModelManager:
         device: str = "cpu",
         compute_type: str = "auto",
         threads: int = 4,
-        model_path: str = "./models"
+        model_path: str = None,
     ):
-        """
-        Initialize the model manager.
+        """Initialize the model manager.
 
         Args:
             model_name: Whisper model size (tiny/base/small/medium/large)
             device: Compute device (cpu/cuda/gpu)
             compute_type: Quantization type (auto/int8/float16/etc.)
             threads: Number of CPU threads to use
-            model_path: Directory to store/load models
+            model_path: Directory to store/load models (defaults to platform-specific cache)
+
         """
         self.model_name = model_name
         self.device = "cuda" if device.lower() in ("gpu", "cuda") else "cpu"
         self.compute_type = compute_type
         self.threads = threads
-        self.model_path = model_path
+        self.model_path = model_path if model_path is not None else get_default_model_path()
         self._model = None
 
         # Ensure model directory exists
@@ -291,9 +349,9 @@ class WhisperModelManager:
                 device=self.device,
                 cpu_threads=self.threads,
                 num_workers=1,
-                compute_type=self.compute_type
+                compute_type=self.compute_type,
             )
-            logging.debug(f"Model loaded successfully")
+            logging.debug("Model loaded successfully")
 
     def unload(self):
         """Unload the model from memory and clean up resources."""
@@ -309,7 +367,7 @@ class WhisperModelManager:
                 logging.debug("CUDA cache cleared")
 
             # Garbage collection (skip on Windows to avoid crashes)
-            if os.name != 'nt':
+            if os.name != "nt":
                 gc.collect()
 
     @property
@@ -330,10 +388,9 @@ def whisper_model_context(
     device: str = "cpu",
     compute_type: str = "auto",
     threads: int = 4,
-    model_path: str = "./models"
+    model_path: str = None,
 ):
-    """
-    Context manager for Whisper model lifecycle.
+    """Context manager for Whisper model lifecycle.
 
     Ensures the model is properly loaded and cleaned up, even if errors occur.
     Perfect for CLI usage where we load once, transcribe, and exit.
@@ -353,6 +410,7 @@ def whisper_model_context(
 # ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
+
 
 def is_audio_file(file_path: str) -> bool:
     """Check if a file is an audio file based on its extension."""
@@ -376,12 +434,10 @@ def progress_callback(seek, total):
     sys.stdout.flush()
     sys.stderr.flush()
     # Simple progress indicator - can be enhanced
-    pass
 
 
-def get_audio_tracks(video_file: str) -> List[Dict[str, Any]]:
-    """
-    Extract information about audio tracks in a media file.
+def get_audio_tracks(video_file: str) -> list[dict[str, Any]]:
+    """Extract information about audio tracks in a media file.
 
     Args:
         video_file: Path to the media file
@@ -397,10 +453,11 @@ def get_audio_tracks(video_file: str) -> List[Dict[str, Any]]:
         - forced (bool): Is forced track
         - original (bool): Is original track
         - commentary (bool): Is commentary track
+
     """
     try:
-        probe = ffmpeg.probe(video_file, select_streams='a')
-        audio_streams = probe.get('streams', [])
+        probe = ffmpeg.probe(video_file, select_streams="a")
+        audio_streams = probe.get("streams", [])
 
         audio_tracks = []
         for stream in audio_streams:
@@ -409,29 +466,31 @@ def get_audio_tracks(video_file: str) -> List[Dict[str, Any]]:
                 "codec": stream.get("codec_name", "Unknown"),
                 "channels": int(stream.get("channels", 0)),
                 "language": LanguageCode.from_iso_639_2(
-                    stream.get("tags", {}).get("language", "Unknown")
+                    stream.get("tags", {}).get("language", "Unknown"),
                 ),
                 "title": stream.get("tags", {}).get("title", "None"),
                 "default": stream.get("disposition", {}).get("default", 0) == 1,
                 "forced": stream.get("disposition", {}).get("forced", 0) == 1,
                 "original": stream.get("disposition", {}).get("original", 0) == 1,
-                "commentary": "commentary" in stream.get("tags", {}).get("title", "").lower()
+                "commentary": "commentary"
+                in stream.get("tags", {}).get("title", "").lower(),
             }
             audio_tracks.append(audio_track)
 
         return audio_tracks
 
     except ffmpeg.Error as e:
-        logging.error(f"FFmpeg error reading audio tracks: {e.stderr}")
+        logging.exception(f"FFmpeg error reading audio tracks: {e.stderr}")
         return []
     except Exception as e:
-        logging.error(f"Error reading audio tracks: {e}")
+        logging.exception(f"Error reading audio tracks: {e}")
         return []
 
 
-def extract_audio_track_to_memory(video_path: str, track_index: int) -> Optional[BytesIO]:
-    """
-    Extract a specific audio track from a video file to memory.
+def extract_audio_track_to_memory(
+    video_path: str, track_index: int,
+) -> BytesIO | None:
+    """Extract a specific audio track from a video file to memory.
 
     Args:
         video_path: Path to the video file
@@ -439,6 +498,7 @@ def extract_audio_track_to_memory(video_path: str, track_index: int) -> Optional
 
     Returns:
         BytesIO object containing audio data, or None if extraction failed
+
     """
     try:
         out, _ = (
@@ -449,26 +509,24 @@ def extract_audio_track_to_memory(video_path: str, track_index: int) -> Optional
                 format="wav",
                 ac=1,  # Mono audio
                 ar=16000,  # 16 kHz sample rate (optimal for speech)
-                loglevel="quiet"
+                loglevel="quiet",
             )
             .run(capture_stdout=True, capture_stderr=True)
         )
         return BytesIO(out)
 
     except ffmpeg.Error as e:
-        logging.error(f"FFmpeg error extracting audio track: {e.stderr.decode()}")
+        logging.exception(f"FFmpeg error extracting audio track: {e.stderr.decode()}")
         return None
     except Exception as e:
-        logging.error(f"Error extracting audio track: {e}")
+        logging.exception(f"Error extracting audio track: {e}")
         return None
 
 
 def get_audio_track_by_language(
-    audio_tracks: List[Dict[str, Any]],
-    language: LanguageCode
-) -> Optional[Dict[str, Any]]:
-    """
-    Find the first audio track with the specified language.
+    audio_tracks: list[dict[str, Any]], language: LanguageCode,
+) -> dict[str, Any] | None:
+    """Find the first audio track with the specified language.
 
     Args:
         audio_tracks: List of audio track dictionaries
@@ -476,19 +534,18 @@ def get_audio_track_by_language(
 
     Returns:
         Audio track dictionary, or None if not found
+
     """
     for track in audio_tracks:
-        if track['language'] == language:
+        if track["language"] == language:
             return track
     return None
 
 
 def handle_multiple_audio_tracks(
-    file_path: str,
-    language: Optional[LanguageCode] = None
-) -> Optional[BytesIO]:
-    """
-    Handle media files with multiple audio tracks.
+    file_path: str, language: LanguageCode | None = None,
+) -> BytesIO | None:
+    """Handle media files with multiple audio tracks.
 
     If the file has multiple audio tracks, extract the one matching
     the specified language, or the first track if no language specified.
@@ -499,6 +556,7 @@ def handle_multiple_audio_tracks(
 
     Returns:
         BytesIO with extracted audio, or None if not extracted
+
     """
     audio_tracks = get_audio_tracks(file_path)
 
@@ -507,11 +565,14 @@ def handle_multiple_audio_tracks(
 
     logging.debug(f"File has {len(audio_tracks)} audio tracks")
     logging.debug(
-        "Audio tracks:\n" + "\n".join([
-            f"  - {track['index']}: {track['codec']} {track['language'].to_name()} "
-            f"{'[DEFAULT]' if track['default'] else ''}"
-            for track in audio_tracks
-        ])
+        "Audio tracks:\n"
+        + "\n".join(
+            [
+                f"  - {track['index']}: {track['codec']} {track['language'].to_name()} "
+                f"{'[DEFAULT]' if track['default'] else ''}"
+                for track in audio_tracks
+            ],
+        ),
     )
 
     # Select track by language if specified
@@ -535,19 +596,19 @@ def handle_multiple_audio_tracks(
 
 
 def write_lrc(result, file_path: str):
-    """
-    Write transcription result to LRC (lyrics) format.
+    """Write transcription result to LRC (lyrics) format.
 
     Args:
         result: Whisper transcription result
         file_path: Output path for LRC file
+
     """
     with open(file_path, "w", encoding="utf-8") as file:
         for segment in result.segments:
             minutes, seconds = divmod(int(segment.start), 60)
             fraction = int((segment.start - int(segment.start)) * 100)
             # Remove embedded newlines (some players ignore text after newlines)
-            text = segment.text.replace('\n', '')
+            text = segment.text.replace("\n", "")
             file.write(f"[{minutes:02d}:{seconds:02d}.{fraction:02d}]{text}\n")
 
 
@@ -558,10 +619,9 @@ def build_subtitle_filename(
     is_lrc: bool = False,
     include_model: bool = True,
     include_subgen: bool = True,
-    subtitle_name_override: Optional[str] = None
+    subtitle_name_override: str | None = None,
 ) -> str:
-    """
-    Build the subtitle filename based on configuration.
+    """Build the subtitle filename based on configuration.
 
     Args:
         base_path: Base file path (without extension)
@@ -574,6 +634,7 @@ def build_subtitle_filename(
 
     Returns:
         Full path for subtitle file
+
     """
     subgen_part = ".subgen" if include_subgen else ""
     model_part = f".{model_name}" if include_model else ""
@@ -581,15 +642,15 @@ def build_subtitle_filename(
     if is_lrc:
         # LRC format: basename.subgen.model.lrc
         return f"{base_path}{subgen_part}{model_part}.lrc"
-    else:
-        # SRT format: basename.subgen.model.lang.srt
-        lang_part = subtitle_name_override or language.to_iso_639_2_b()
-        return f"{base_path}{subgen_part}{model_part}.{lang_part}.srt"
+    # SRT format: basename.subgen.model.lang.srt
+    lang_part = subtitle_name_override or language.to_iso_639_2_b()
+    return f"{base_path}{subgen_part}{model_part}.{lang_part}.srt"
 
 
 # ============================================================================
 # TRANSCRIPTION
 # ============================================================================
+
 
 class TranscriptionConfig:
     """Configuration for transcription operation."""
@@ -601,30 +662,27 @@ class TranscriptionConfig:
         device: str = "cpu",
         compute_type: str = "auto",
         threads: int = 4,
-        model_path: str = "./models",
-
+        model_path: str = None,
         # Transcription settings
         task: str = "transcribe",
-        language: Optional[LanguageCode] = None,
-        audio_track: Optional[int] = None,
-
+        language: LanguageCode | None = None,
+        audio_track: int | None = None,
         # Output settings
-        output_dir: Optional[str] = None,
+        output_dir: str | None = None,
         word_highlight: bool = False,
         lrc_for_audio: bool = True,
         include_model_name: bool = True,
         include_subgen_tag: bool = True,
-        subtitle_name: Optional[str] = None,
-
+        subtitle_name: str | None = None,
         # Advanced settings
         custom_regroup: str = "cm_sl=84_sl=42++++++1",
-        verbose: bool = False
+        verbose: bool = False,
     ):
         self.model_name = model_name
         self.device = device
         self.compute_type = compute_type
         self.threads = threads
-        self.model_path = model_path
+        self.model_path = model_path if model_path is not None else get_default_model_path()
 
         self.task = task
         self.language = language
@@ -642,8 +700,7 @@ class TranscriptionConfig:
 
 
 def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
-    """
-    Transcribe a media file to generate subtitles.
+    """Transcribe a media file to generate subtitles.
 
     Args:
         file_path: Path to the media file
@@ -656,6 +713,7 @@ def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
         FileNotFoundError: If the input file doesn't exist
         ValueError: If the file is not a supported media type
         Exception: For transcription errors
+
     """
     # Validate file
     if not os.path.exists(file_path):
@@ -679,7 +737,7 @@ def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
         config.device,
         config.compute_type,
         config.threads,
-        config.model_path
+        config.model_path,
     ) as model_manager:
 
         # Handle audio track selection
@@ -695,17 +753,17 @@ def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
             if config.audio_track < 1 or config.audio_track > len(tracks):
                 raise ValueError(
                     f"Audio track {config.audio_track} not found. "
-                    f"Valid tracks: 1-{len(tracks)}. Use --list-tracks to see available tracks."
+                    f"Valid tracks: 1-{len(tracks)}. Use --list-tracks to see available tracks.",
                 )
 
             # Convert 1-based user input to actual stream index
             selected_track = tracks[config.audio_track - 1]
-            stream_index = selected_track['index']
+            stream_index = selected_track["index"]
 
             logging.info(
                 f"Extracting track {config.audio_track} "
                 f"(stream {stream_index}, {selected_track['codec']}, "
-                f"{selected_track['language'].to_name()})"
+                f"{selected_track['language'].to_name()})",
             )
 
             extracted = extract_audio_track_to_memory(file_path, stream_index)
@@ -713,7 +771,7 @@ def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
                 data = extracted.read()
             else:
                 raise Exception(
-                    f"Failed to extract audio track {config.audio_track} (stream {stream_index})"
+                    f"Failed to extract audio track {config.audio_track} (stream {stream_index})",
                 )
         elif not is_audio:
             # Handle multiple audio tracks automatically
@@ -722,26 +780,27 @@ def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
                 data = extracted.read()
 
         # Prepare transcription arguments
-        transcribe_args = {
-            'progress_callback': progress_callback
-        }
+        transcribe_args = {"progress_callback": progress_callback}
 
         if config.custom_regroup:
-            transcribe_args['regroup'] = config.custom_regroup
+            transcribe_args["regroup"] = config.custom_regroup
 
         # Determine language parameter
-        lang_param = config.language.to_iso_639_1() if config.language and config.language != LanguageCode.NONE else None
+        lang_param = (
+            config.language.to_iso_639_1()
+            if config.language and config.language != LanguageCode.NONE
+            else None
+        )
 
         # Transcribe
         logging.info(f"Starting {config.task}...")
         if config.verbose:
-            logging.info(f"Model: {config.model_name}, Device: {config.device}, Compute: {config.compute_type}")
+            logging.info(
+                f"Model: {config.model_name}, Device: {config.device}, Compute: {config.compute_type}",
+            )
 
         result = model_manager.model.transcribe(
-            data,
-            language=lang_param,
-            task=config.task,
-            **transcribe_args
+            data, language=lang_param, task=config.task, **transcribe_args,
         )
 
         # Determine detected language
@@ -773,7 +832,7 @@ def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
                 is_lrc=True,
                 include_model=config.include_model_name,
                 include_subgen=config.include_subgen_tag,
-                subtitle_name_override=config.subtitle_name
+                subtitle_name_override=config.subtitle_name,
             )
             write_lrc(result, output_file)
         else:
@@ -785,7 +844,7 @@ def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
                 is_lrc=False,
                 include_model=config.include_model_name,
                 include_subgen=config.include_subgen_tag,
-                subtitle_name_override=config.subtitle_name
+                subtitle_name_override=config.subtitle_name,
             )
             result.to_srt_vtt(output_file, word_level=config.word_highlight)
 
@@ -803,13 +862,16 @@ def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
 # CLI INTERFACE
 # ============================================================================
 
+
 def setup_logging(verbose: bool = False):
     """Configure logging for CLI output."""
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
-        format='%(asctime)s - %(levelname)s - %(message)s' if verbose else '%(message)s',
+        format=(
+            "%(asctime)s - %(levelname)s - %(message)s" if verbose else "%(message)s"
+        ),
         level=level,
-        datefmt='%Y-%m-%d %H:%M:%S'
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
 
@@ -822,15 +884,19 @@ def list_audio_tracks(file_path: str):
 
     logging.info(f"\nAudio tracks found ({len(tracks)}):")
     for idx, track in enumerate(tracks, 1):
-        lang = track['language'].to_name() if track['language'] != LanguageCode.NONE else 'Unknown'
-        default = " [DEFAULT]" if track.get('default', False) else ""
+        lang = (
+            track["language"].to_name()
+            if track["language"] != LanguageCode.NONE
+            else "Unknown"
+        )
+        default = " [DEFAULT]" if track.get("default", False) else ""
         logging.info(f"  Track {idx}: {track['codec']} - {lang}{default}")
 
 
 def parse_arguments():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description='Generate subtitles for video/audio files using Whisper AI',
+        description="Generate subtitles for video/audio files using Whisper AI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -854,121 +920,127 @@ Device Options:
     - cuda/gpu (requires NVIDIA GPU with CUDA)
 
 For more information: https://github.com/seanmwv/subgen-cli
-        """
+        """,
     )
 
     # Required arguments
     parser.add_argument(
-        '-f', '--file',
-        required=True,
-        help='Path to video or audio file'
+        "-f", "--file", required=True, help="Path to video or audio file",
     )
 
     # Model configuration
-    model_group = parser.add_argument_group('model configuration')
+    model_group = parser.add_argument_group("model configuration")
     model_group.add_argument(
-        '--model',
-        default='medium',
-        choices=['tiny', 'base', 'small', 'medium', 'large',
-                 'large-v2', 'large-v3', 'distil-large-v2', 'distil-large-v3'],
-        help='Whisper model size (default: medium)'
+        "--model",
+        default="medium",
+        choices=[
+            "tiny",
+            "base",
+            "small",
+            "medium",
+            "large",
+            "large-v2",
+            "large-v3",
+            "distil-large-v2",
+            "distil-large-v3",
+        ],
+        help="Whisper model size (default: medium)",
     )
     model_group.add_argument(
-        '--device',
-        default='cpu',
-        choices=['cpu', 'cuda', 'gpu'],
-        help='Compute device (default: cpu)'
+        "--device",
+        default="cpu",
+        choices=["cpu", "cuda", "gpu"],
+        help="Compute device (default: cpu)",
     )
     model_group.add_argument(
-        '--compute-type',
-        default='auto',
-        help='Quantization type: auto, int8, float16, etc. (default: auto)'
+        "--compute-type",
+        default="auto",
+        help="Quantization type: auto, int8, float16, etc. (default: auto)",
     )
     model_group.add_argument(
-        '--threads',
-        type=int,
-        default=4,
-        help='Number of CPU threads (default: 4)'
+        "--threads", type=int, default=4, help="Number of CPU threads (default: 4)",
     )
     model_group.add_argument(
-        '--model-path',
-        default='./models',
-        help='Directory to store/load models (default: ./models)'
+        "--model-path",
+        default=None,
+        help=f"Directory to store/load models (default: {get_default_model_path()})",
     )
 
     # Transcription options
-    trans_group = parser.add_argument_group('transcription options')
+    trans_group = parser.add_argument_group("transcription options")
     trans_group.add_argument(
-        '-l', '--language',
-        help='Force language (2-letter ISO 639-1 code, e.g., en, es, fr). If not set, language will be auto-detected.'
+        "-l",
+        "--language",
+        help="Force language (2-letter ISO 639-1 code, e.g., en, es, fr). If not set, language will be auto-detected.",
     )
     trans_group.add_argument(
-        '-t', '--task',
-        choices=['transcribe', 'translate'],
-        default='transcribe',
-        help='Task to perform: transcribe (same language) or translate (to English). Default: transcribe'
+        "-t",
+        "--task",
+        choices=["transcribe", "translate"],
+        default="transcribe",
+        help="Task to perform: transcribe (same language) or translate (to English). Default: transcribe",
     )
     trans_group.add_argument(
-        '-a', '--audio-track',
+        "-a",
+        "--audio-track",
         type=int,
-        help='Audio track number to use (1-based index). Use --list-tracks to see available tracks.'
+        help="Audio track number to use (1-based index). Use --list-tracks to see available tracks.",
     )
 
     # Output options
-    output_group = parser.add_argument_group('output options')
+    output_group = parser.add_argument_group("output options")
     output_group.add_argument(
-        '-o', '--output',
-        help='Output directory for subtitle file (default: same directory as input file)'
+        "-o",
+        "--output",
+        help="Output directory for subtitle file (default: same directory as input file)",
     )
     output_group.add_argument(
-        '-w', '--word-highlight',
-        action='store_true',
-        help='Enable word-level highlighting (karaoke-style subtitles)'
+        "-w",
+        "--word-highlight",
+        action="store_true",
+        help="Enable word-level highlighting (karaoke-style subtitles)",
     )
     output_group.add_argument(
-        '-n', '--subtitle-name',
-        help='Custom subtitle language name (overrides auto-detected language)'
+        "-n",
+        "--subtitle-name",
+        help="Custom subtitle language name (overrides auto-detected language)",
     )
     output_group.add_argument(
-        '--no-lrc',
-        action='store_true',
-        help='Generate SRT for audio files instead of LRC'
+        "--no-lrc",
+        action="store_true",
+        help="Generate SRT for audio files instead of LRC",
     )
     output_group.add_argument(
-        '--no-model-name',
-        action='store_true',
-        help='Do not include model name in subtitle filename'
+        "--no-model-name",
+        action="store_true",
+        help="Do not include model name in subtitle filename",
     )
     output_group.add_argument(
-        '--no-subgen-tag',
-        action='store_true',
-        help='Do not include "subgen" tag in subtitle filename'
+        "--no-subgen-tag",
+        action="store_true",
+        help='Do not include "subgen" tag in subtitle filename',
     )
 
     # Information options
-    info_group = parser.add_argument_group('information options')
+    info_group = parser.add_argument_group("information options")
     info_group.add_argument(
-        '--list-tracks',
-        action='store_true',
-        help='List available audio tracks and exit'
+        "--list-tracks",
+        action="store_true",
+        help="List available audio tracks and exit",
     )
     info_group.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Enable verbose logging'
+        "-v", "--verbose", action="store_true", help="Enable verbose logging",
     )
     info_group.add_argument(
-        '--version',
-        action='version',
-        version=f'%(prog)s {__version__}'
+        "--version", action="version", version=f"%(prog)s {__version__}",
     )
 
     # Advanced options
-    advanced_group = parser.add_argument_group('advanced options')
+    advanced_group = parser.add_argument_group("advanced options")
     advanced_group.add_argument(
-        '--regroup',
-        default='cm_sl=84_sl=42++++++1',
-        help='Custom regroup pattern for subtitle formatting (default: cm_sl=84_sl=42++++++1)'
+        "--regroup",
+        default="cm_sl=84_sl=42++++++1",
+        help="Custom regroup pattern for subtitle formatting (default: cm_sl=84_sl=42++++++1)",
     )
 
     return parser.parse_args()
@@ -997,10 +1069,12 @@ def main():
     if args.language:
         try:
             force_language = LanguageCode.from_string(args.language)
-            logging.info(f"Forcing language: {force_language.to_name()} ({args.language})")
+            logging.info(
+                f"Forcing language: {force_language.to_name()} ({args.language})",
+            )
         except (ValueError, AttributeError):
-            logging.error(f"Error: Invalid language code: {args.language}")
-            logging.error("Use 2-letter ISO 639-1 codes (e.g., 'en', 'es', 'fr')")
+            logging.exception(f"Error: Invalid language code: {args.language}")
+            logging.exception("Use 2-letter ISO 639-1 codes (e.g., 'en', 'es', 'fr')")
             sys.exit(1)
 
     # Build configuration
@@ -1011,12 +1085,10 @@ def main():
         compute_type=args.compute_type,
         threads=args.threads,
         model_path=args.model_path,
-
         # Transcription settings
         task=args.task,
         language=force_language if force_language != LanguageCode.NONE else None,
         audio_track=args.audio_track,
-
         # Output settings
         output_dir=args.output,
         word_highlight=args.word_highlight,
@@ -1024,10 +1096,9 @@ def main():
         include_model_name=not args.no_model_name,
         include_subgen_tag=not args.no_subgen_tag,
         subtitle_name=args.subtitle_name,
-
         # Advanced settings
         custom_regroup=args.regroup,
-        verbose=args.verbose
+        verbose=args.verbose,
     )
 
     # Show configuration in verbose mode
@@ -1047,12 +1118,13 @@ def main():
         logging.info("\nInterrupted by user")
         sys.exit(130)
     except Exception as e:
-        logging.error(f"Fatal error: {e}")
+        logging.exception(f"Fatal error: {e}")
         if config.verbose:
             import traceback
+
             traceback.print_exc()
         sys.exit(3)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
