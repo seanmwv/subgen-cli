@@ -9,7 +9,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable"
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: End Users/Desktop",
@@ -22,9 +22,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies= [
-    "ffmpeg_python~=0.2.0",
-    "stable_ts[fw]~=2.19.1",
-    "torch>=2.0.0"
+    "ffmpeg_python>=0.2.0",
+    "stable_ts[fw]>=2.19.0",
+    "torch>=2.0.0,<3.0.0"
 ]
 
 [project.optional-dependencies]
