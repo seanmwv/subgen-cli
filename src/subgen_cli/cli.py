@@ -9,8 +9,7 @@ arguments instead of environment variables.
 Based on subgen by McCloudS: https://github.com/McCloudS/subgen
 """
 
-__version__ = "1.0.0"
-
+from . import __version__
 import argparse
 import sys
 import os
@@ -854,7 +853,7 @@ Device Options:
     - cpu (default, works everywhere)
     - cuda/gpu (requires NVIDIA GPU with CUDA)
 
-For more information: https://github.com/McCloudS/subgen
+For more information: https://github.com/seanmwv/subgen-cli
         """
     )
 

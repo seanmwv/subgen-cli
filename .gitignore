@@ -1,10 +1,43 @@
-.vnv
-.vscode/*
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Local History for Visual Studio Code
-.history/
+# Virtual environments
+.venv/
+.vnv/
+venv/
+ENV/
+env/
 
-# Built Visual Studio Code Extensions
-*.vsix
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
 
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
 models/
+*.srt
+*.lrc
