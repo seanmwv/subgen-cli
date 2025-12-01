@@ -1,6 +1,6 @@
 # Subgen CLI
 
-A standalone command-line interface for automated subtitle generation using OpenAI's Whisper AI. This is a clean, CLI-focused implementation that generates high-quality subtitles for video and audio files.
+A standalone command-line interface for automated subtitle generation using OpenAI's Whisper AI. Generates high-quality subtitles for video and audio files.
 
 ## Features
 

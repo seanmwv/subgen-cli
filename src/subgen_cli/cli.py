@@ -15,6 +15,7 @@ import os
 import sys
 import time
 from contextlib import contextmanager
+from pathlib import Path
 from enum import Enum
 from io import BytesIO
 from typing import Any
@@ -40,11 +41,11 @@ def get_default_model_path() -> str:
         - Linux/macOS: ~/.cache/subgen/models
     """
     if os.name == 'nt':  # Windows
-        base = os.getenv('LOCALAPPDATA', os.path.expanduser('~'))
-        return os.path.join(base, 'subgen', 'models')
+        base = Path(os.getenv("LOCALAPPDATA", str(Path.home())))
+        return str(base / "subgen" / "models")
     else:  # Linux/macOS
-        base = os.getenv('XDG_CACHE_HOME', os.path.expanduser('~/.cache'))
-        return os.path.join(base, 'subgen', 'models')
+        base = Path(os.getenv('XDG_CACHE_HOME', str(Path.home() / '.cache')))
+        return str(base / 'subgen' / 'models')
 
 
 VIDEO_EXTENSIONS = (
