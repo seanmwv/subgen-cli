@@ -31,6 +31,7 @@ from . import __version__
 # CONSTANTS
 # ============================================================================
 
+
 def get_default_model_path() -> str:
     """
     Get platform-specific default model cache directory.
@@ -40,12 +41,12 @@ def get_default_model_path() -> str:
         - Windows: %LOCALAPPDATA%\\subgen\\models
         - Linux/macOS: ~/.cache/subgen/models
     """
-    if os.name == 'nt':  # Windows
+    if os.name == "nt":  # Windows
         base = Path(os.getenv("LOCALAPPDATA", str(Path.home())))
         return str(base / "subgen" / "models")
     else:  # Linux/macOS
-        base = Path(os.getenv('XDG_CACHE_HOME', str(Path.home() / '.cache')))
-        return str(base / 'subgen' / 'models')
+        base = Path(os.getenv("XDG_CACHE_HOME", str(Path.home() / ".cache")))
+        return str(base / "subgen" / "models")
 
 
 VIDEO_EXTENSIONS = (
@@ -241,8 +242,7 @@ class LanguageCode(Enum):
 
     @staticmethod
     def from_string(value: str):
-        """Convert a string to a LanguageCode instance. Matches on ISO codes, English name, or native name.
-        """
+        """Convert a string to a LanguageCode instance. Matches on ISO codes, English name, or native name."""
         if value is None:
             return LanguageCode.NONE
         value = value.strip().lower()
@@ -334,7 +334,9 @@ class WhisperModelManager:
         self.device = "cuda" if device.lower() in ("gpu", "cuda") else "cpu"
         self.compute_type = compute_type
         self.threads = threads
-        self.model_path = model_path if model_path is not None else get_default_model_path()
+        self.model_path = (
+            model_path if model_path is not None else get_default_model_path()
+        )
         self._model = None
 
         # Ensure model directory exists
@@ -489,7 +491,8 @@ def get_audio_tracks(video_file: str) -> list[dict[str, Any]]:
 
 
 def extract_audio_track_to_memory(
-    video_path: str, track_index: int,
+    video_path: str,
+    track_index: int,
 ) -> BytesIO | None:
     """Extract a specific audio track from a video file to memory.
 
@@ -525,7 +528,8 @@ def extract_audio_track_to_memory(
 
 
 def get_audio_track_by_language(
-    audio_tracks: list[dict[str, Any]], language: LanguageCode,
+    audio_tracks: list[dict[str, Any]],
+    language: LanguageCode,
 ) -> dict[str, Any] | None:
     """Find the first audio track with the specified language.
 
@@ -544,7 +548,8 @@ def get_audio_track_by_language(
 
 
 def handle_multiple_audio_tracks(
-    file_path: str, language: LanguageCode | None = None,
+    file_path: str,
+    language: LanguageCode | None = None,
 ) -> BytesIO | None:
     """Handle media files with multiple audio tracks.
 
@@ -683,7 +688,9 @@ class TranscriptionConfig:
         self.device = device
         self.compute_type = compute_type
         self.threads = threads
-        self.model_path = model_path if model_path is not None else get_default_model_path()
+        self.model_path = (
+            model_path if model_path is not None else get_default_model_path()
+        )
 
         self.task = task
         self.language = language
@@ -801,7 +808,10 @@ def transcribe_file(file_path: str, config: TranscriptionConfig) -> str:
             )
 
         result = model_manager.model.transcribe(
-            data, language=lang_param, task=config.task, **transcribe_args,
+            data,
+            language=lang_param,
+            task=config.task,
+            **transcribe_args,
         )
 
         # Determine detected language
@@ -926,7 +936,10 @@ For more information: https://github.com/seanmwv/subgen-cli
 
     # Required arguments
     parser.add_argument(
-        "-f", "--file", required=True, help="Path to video or audio file",
+        "-f",
+        "--file",
+        required=True,
+        help="Path to video or audio file",
     )
 
     # Model configuration
@@ -959,7 +972,10 @@ For more information: https://github.com/seanmwv/subgen-cli
         help="Quantization type: auto, int8, float16, etc. (default: auto)",
     )
     model_group.add_argument(
-        "--threads", type=int, default=4, help="Number of CPU threads (default: 4)",
+        "--threads",
+        type=int,
+        default=4,
+        help="Number of CPU threads (default: 4)",
     )
     model_group.add_argument(
         "--model-path",
@@ -1030,10 +1046,15 @@ For more information: https://github.com/seanmwv/subgen-cli
         help="List available audio tracks and exit",
     )
     info_group.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable verbose logging",
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging",
     )
     info_group.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}",
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
 
     # Advanced options
