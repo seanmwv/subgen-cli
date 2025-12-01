@@ -1,20 +1,12 @@
 # Subgen CLI
 
-A standalone command-line interface for automated subtitle generation using OpenAI's Whisper AI. Generates high-quality subtitles for video and audio files.
+## Overview
 
-## Features
+A standalone command-line interface for automated subtitle generation derived from [McCloudS' Subgen](https://github.com/McCloudS/subgen). Uses OpenAI's Whisper to generate high-quality subtitles for video and audio files.
 
-- **Automatic Speech Recognition**: Uses Whisper AI for accurate transcription
-- **Multiple Whisper Models**: Support for tiny, base, small, medium, and large models
-- **100+ Languages**: Comprehensive language support with automatic detection
-- **Multi-track Support**: Handle files with multiple audio tracks
-- **CPU & GPU**: Works on CPU or NVIDIA GPUs with CUDA
-- **Flexible Output**:
-  - SRT format for videos
-  - LRC format for audio files
-  - Word-level highlighting (karaoke-style)
-- **Translation**: Transcribe in original language or translate to English
-- **Customizable**: Control output naming, directory, and subtitle formatting
+## Raison d'être
+
+Subgen has all kinds of server integration built-in which I did not need. This tool allows me to automate/pipeline subtitle generation for my media library. There are a few existing tools which achieve the same thing like, for example, [auto subs](https://github.com/mateusz-kow/auto-subs) (which has more features and is generally more robust), but I only found these alternatives [after I had started working on this fork](https://en.wikipedia.org/wiki/Sunk_cost).
 
 ## Installation
 
@@ -39,16 +31,6 @@ pip install -e .
   - **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
   - **macOS**: `brew install ffmpeg`
   - **Linux**: `sudo apt install ffmpeg` (Debian/Ubuntu) or `sudo yum install ffmpeg` (RHEL/CentOS)
-
-### Optional: GPU Support
-
-For NVIDIA GPU acceleration:
-
-```bash
-pip install subgen-cli[gpu]
-```
-
-Requires CUDA-compatible GPU and drivers.
 
 ## Usage
 
@@ -112,7 +94,6 @@ subgen -f video.mp4 --device cuda --model large
 - `--model-path`: Directory to store/load models
   - **Windows**: Default: `%LOCALAPPDATA%\subgen\models`
   - **Linux/macOS**: Default: `~/.cache/subgen/models`
-  - Models are cached globally and shared across all projects
 
 #### Transcription Options
 
@@ -165,15 +146,171 @@ You can customize this with:
 - `--no-model-name`: Remove model name from filename
 - `-n custom`: Override language code with custom name
 
-### Supported Languages
-
-Subgen supports 100+ languages through Whisper AI, including:
-
-Arabic, Chinese (Mandarin & Cantonese), Czech, Danish, Dutch, English, Finnish, French, German, Greek, Hebrew, Hindi, Hungarian, Indonesian, Italian, Japanese, Korean, Norwegian, Polish, Portuguese, Russian, Spanish, Swedish, Thai, Turkish, Ukrainian, Vietnamese, and many more.
+### Languages
 
 Use 2-letter ISO 639-1 codes with the `-l` flag (e.g., `-l fr` for French).
 
-## Performance Tips
+### Supported Video Extensions
+
+```
+".mp4",
+".mkv",
+".avi",
+".mov",
+".wmv",
+".flv",
+".webm",
+".mpg",
+".mpeg",
+".3gp",
+".ogv",
+".vob",
+".rm",
+".rmvb",
+".ts",
+".m4v",
+".f4v",
+".svq3",
+".asf",
+".m2ts",
+".divx",
+".xvid",
+```
+
+### Supported Audio Extensions
+
+```
+".mp3",
+".wav",
+".aac",
+".flac",
+".ogg",
+".wma",
+".alac",
+".m4a",
+".opus",
+".aiff",
+".aif",
+".pcm",
+".ra",
+".ram",
+".mid",
+".midi",
+".ape",
+".wv",
+".amr",
+".vox",
+".tak",
+".spx",
+".m4b",
+".mka",
+```
+
+### [Supported Languages](https://github.com/openai/whisper/blob/main/whisper/tokenizer.py)
+```
+"en": "english",
+"zh": "chinese",
+"de": "german",
+"es": "spanish",
+"ru": "russian",
+"ko": "korean",
+"fr": "french",
+"ja": "japanese",
+"pt": "portuguese",
+"tr": "turkish",
+"pl": "polish",
+"ca": "catalan",
+"nl": "dutch",
+"ar": "arabic",
+"sv": "swedish",
+"it": "italian",
+"id": "indonesian",
+"hi": "hindi",
+"fi": "finnish",
+"vi": "vietnamese",
+"he": "hebrew",
+"uk": "ukrainian",
+"el": "greek",
+"ms": "malay",
+"cs": "czech",
+"ro": "romanian",
+"da": "danish",
+"hu": "hungarian",
+"ta": "tamil",
+"no": "norwegian",
+"th": "thai",
+"ur": "urdu",
+"hr": "croatian",
+"bg": "bulgarian",
+"lt": "lithuanian",
+"la": "latin",
+"mi": "maori",
+"ml": "malayalam",
+"cy": "welsh",
+"sk": "slovak",
+"te": "telugu",
+"fa": "persian",
+"lv": "latvian",
+"bn": "bengali",
+"sr": "serbian",
+"az": "azerbaijani",
+"sl": "slovenian",
+"kn": "kannada",
+"et": "estonian",
+"mk": "macedonian",
+"br": "breton",
+"eu": "basque",
+"is": "icelandic",
+"hy": "armenian",
+"ne": "nepali",
+"mn": "mongolian",
+"bs": "bosnian",
+"kk": "kazakh",
+"sq": "albanian",
+"sw": "swahili",
+"gl": "galician",
+"mr": "marathi",
+"pa": "punjabi",
+"si": "sinhala",
+"km": "khmer",
+"sn": "shona",
+"yo": "yoruba",
+"so": "somali",
+"af": "afrikaans",
+"oc": "occitan",
+"ka": "georgian",
+"be": "belarusian",
+"tg": "tajik",
+"sd": "sindhi",
+"gu": "gujarati",
+"am": "amharic",
+"yi": "yiddish",
+"lo": "lao",
+"uz": "uzbek",
+"fo": "faroese",
+"ht": "haitian creole",
+"ps": "pashto",
+"tk": "turkmen",
+"nn": "nynorsk",
+"mt": "maltese",
+"sa": "sanskrit",
+"lb": "luxembourgish",
+"my": "myanmar",
+"bo": "tibetan",
+"tl": "tagalog",
+"mg": "malagasy",
+"as": "assamese",
+"tt": "tatar",
+"haw": "hawaiian",
+"ln": "lingala",
+"ha": "hausa",
+"ba": "bashkir",
+"jw": "javanese",
+"su": "sundanese",
+"yue": "cantonese",
+```    
+
+## Tips
 
 1. **Model Selection**:
    - Use `tiny` or `small` for quick processing
@@ -218,11 +355,7 @@ If the wrong language is detected:
 2. Check audio quality - poor audio affects detection
 3. Try a larger model for better accuracy
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues or pull requests.
-
-### Development Setup
+## Development Setup
 
 ```bash
 # Clone repository
@@ -240,6 +373,9 @@ black src/
 
 # Lint code
 ruff check src/
+
+# Build
+python -m build
 ```
 
 ## License
