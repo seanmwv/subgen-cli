@@ -387,6 +387,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 This project is based on [McCloudS/subgen](https://github.com/McCloudS/subgen), a subtitle generation tool originally designed for server environments. Subgen CLI is a standalone, command-line focused standalone reimplementation without environment variables.
 
 Original work Copyright (c) 2023 McCloudS
+
 Modified work Copyright (c) 2025 seanmwv
 
 ## Acknowledgments
