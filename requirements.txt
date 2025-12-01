@@ -1,3 +1,3 @@
 ffmpeg_python==0.2.0
-stable_ts==2.19.1
+stable_ts[fw]==2.19.1
 torch==2.9.1
