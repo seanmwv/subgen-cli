@@ -374,8 +374,24 @@ black src/
 # Lint code
 ruff check src/
 
+# Static type checking
+mypy src/
+
 # Build
 python -m build
+
+# Test Build
+python -m venv test-env
+source test-env/bin/activate  # On Windows: test-env\Scripts\activate
+
+pip install dist/subgen_cli-x.x.x-py3-none-any.whl
+
+subgen --version
+subgen --help
+subgen -f test.mkv
+
+deactivate
+rm -rf test-env
 ```
 
 ## License
