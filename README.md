@@ -315,7 +315,7 @@ Use 2-letter ISO 639-1 codes with the `-l` flag (e.g., `-l fr` for French).
  - Anecdotally, `--model large-v3` and `-l <target_lang>` work best for transcribing foreign films. Default options have more timing mistakes and hallucinations.
  - Use `--list-tracks` to see available audio tracks
  - Select the correct track with `-a` to avoid processing wrong audio
- - `INT8` quantization [reduces size, latency, potentially reduces hallucinations, with minimal impact on accuracy, and is particularly effective for x86 CPUs.](https://www.alphaxiv.org/overview/2503.09905v1)
+ - `--compute-type int8` quantization [reduces size, latency, potentially reduces hallucinations, with minimal impact on accuracy, and is particularly effective for x86 CPUs.](https://www.alphaxiv.org/overview/2503.09905v1)
 
 ## Troubleshooting
 
