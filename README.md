@@ -70,7 +70,7 @@ subgen -f video.mkv --list-tracks
 subgen -f video.mp4 --device cuda --model large
 
 # My anecdotally optimal invocation
-subgen -f "Z:\media\films\la.piscine.1969.park.circus.1080p.bluray.x265.hevc.flac-sartre.mkv" --compute-type int8 --model large-v3 -l fr
+subgen -f "Z:\media\films\la.piscine.1969.park.circus.1080p.bluray.x265.hevc.mkv" --compute-type int8 --model large-v3 -l fr
 ```
 
 ### Command-Line Options
