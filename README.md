@@ -81,8 +81,8 @@ subgen -f video.mp4 --device cuda --model large
 - `--model`: Whisper model size (default: medium)
   - `tiny`: Fastest, least accurate
   - `base`: Fast, basic accuracy
-  - `small`: Balanced speed and accuracy
-  - `medium`: **Recommended** - Good balance (default)
+  - `small`: Decent speed and accuracy
+  - `medium`: - Balanced speed and accuracy (default)
   - `large`, `large-v2`, `large-v3`: Slowest, most accurate
   - `distil-large-v2`, `distil-large-v3`: Faster alternatives to large models
 - `--device`: Compute device (default: cpu)
@@ -312,18 +312,10 @@ Use 2-letter ISO 639-1 codes with the `-l` flag (e.g., `-l fr` for French).
 
 ## Tips
 
-1. **Model Selection**:
-   - Use `tiny` or `small` for quick processing
-   - Use `medium` for balanced quality (recommended)
-   - Use `large` for maximum accuracy (slower)
-
-2. **GPU Acceleration**:
-   - Install GPU support: `pip install subgen-cli[gpu]`
-   - Use `--device cuda` for 5-10x faster processing
-
-3. **Multi-track Files**:
-   - Use `--list-tracks` to see available audio tracks
-   - Select the correct track with `-a` to avoid processing wrong audio
+ - Anecdotally, `--model large-v3` and `-l <target_lang>` work best for transcribing foreign films. Default options have more timing mistakes and hallucinations.
+ - Use `--list-tracks` to see available audio tracks
+ - Select the correct track with `-a` to avoid processing wrong audio
+ - `INT8` quantization [reduces size, latency, potentially reduces hallucinations, with minimal impact on accuracy, and is particularly effective for x86 CPUs.](https://www.alphaxiv.org/overview/2503.09905v1)
 
 ## Troubleshooting
 
