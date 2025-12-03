@@ -49,7 +49,7 @@ subgen -f video.mp4
 subgen -f movie.mp4 -l es
 
 # Use specific audio track
-subgen -f anime.mkv -a 2
+subgen -f film.mkv -a 2
 
 # Translate to English
 subgen -f video.mp4 -t translate
@@ -68,6 +68,9 @@ subgen -f video.mkv --list-tracks
 
 # Use GPU for faster processing
 subgen -f video.mp4 --device cuda --model large
+
+# My anecdotally optimal invocation
+subgen -f "Z:\media\films\la.piscine.1969.park.circus.1080p.bluray.x265.hevc.flac-sartre.mkv" --compute-type int8 --model large-v3 -l fr
 ```
 
 ### Command-Line Options
